@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -48,12 +49,23 @@ type Adding struct {
 	Isu      string `json:"isu" db:"isu"`
 }
 
+var mAdding = map[string]Adding{}
+
 type Buying struct {
 	RoomName string `db:"room_name"`
 	ItemID   int    `db:"item_id"`
 	Ordinal  int    `db:"ordinal"`
 	Time     int64  `db:"time"`
 }
+
+var mBuying = map[string]Buying{}
+
+type RoomTime struct {
+	RoomName string
+	Time     int64
+}
+
+var mRoomTime = map[string]RoomTime{}
 
 type Schedule struct {
 	Time       int64       `json:"time"`
@@ -175,7 +187,6 @@ func updateRoomTime(tx *sqlx.Tx, roomName string, reqTime int64) (int64, bool) {
 		log.Println(err)
 		return 0, false
 	}
-
 	var roomTime int64
 	err = tx.Get(&roomTime, "SELECT time FROM room_time WHERE room_name = ? FOR UPDATE", roomName)
 	if err != nil {
@@ -218,29 +229,22 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 		return false
 	}
 
-	_, err = tx.Exec("INSERT INTO adding(room_name, time, isu) VALUES (?, ?, '0') ON DUPLICATE KEY UPDATE isu=isu", roomName, reqTime)
-	if err != nil {
-		log.Println(err)
-		tx.Rollback()
-		return false
-	}
+	insertAdding(Adding{
+		RoomName: roomName,
+		Time:     reqTime,
+		Isu:      reqIsu.String(),
+	})
 
-	var isuStr string
-	err = tx.QueryRow("SELECT isu FROM adding WHERE room_name = ? AND time = ? FOR UPDATE", roomName, reqTime).Scan(&isuStr)
-	if err != nil {
-		log.Println(err)
-		tx.Rollback()
-		return false
-	}
+	add := getAddingByRoomName(roomName)
+	isuStr := add.Isu
 	isu := str2big(isuStr)
 
 	isu.Add(isu, reqIsu)
-	_, err = tx.Exec("UPDATE adding SET isu = ? WHERE room_name = ? AND time = ?", isu.String(), roomName, reqTime)
-	if err != nil {
-		log.Println(err)
-		tx.Rollback()
-		return false
-	}
+	insertAdding(Adding{
+		RoomName: roomName,
+		Time:     reqTime,
+		Isu:      isu.String(),
+	})
 
 	if err := tx.Commit(); err != nil {
 		log.Println(err)
@@ -620,4 +624,36 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 			return
 		}
 	}
+}
+
+var mu sync.Mutex
+
+func insertRoomTime(roomTime RoomTime) {
+	mu.Lock()
+	defer mu.Unlock()
+	mRoomTime[roomTime.RoomName] = roomTime
+}
+
+func getRoomTimeByRoomName(roomname string) RoomTime {
+	return mRoomTime[roomname]
+}
+
+func insertBuying(buying Buying) {
+	mu.Lock()
+	defer mu.Unlock()
+	mBuying[buying.RoomName] = buying
+}
+
+func getBuyingByRoomName(roomname string) Buying {
+	return mBuying[roomname]
+}
+
+func insertAdding(adding Adding) {
+	mu.Lock()
+	defer mu.Unlock()
+	mAdding[adding.RoomName] = adding
+}
+
+func getAddingByRoomName(roomname string) Adding {
+	return mAdding[roomname]
 }

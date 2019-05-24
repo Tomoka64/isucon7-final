@@ -92,6 +92,8 @@ func wsGameHandler(w http.ResponseWriter, r *http.Request) {
 	go serveGameConn(ws, roomName)
 }
 
+var fileServer = http.FileServer(http.Dir("../public/"))
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	initDB()
@@ -102,7 +104,7 @@ func main() {
 	r.HandleFunc("/room/{room_name}", getRoomHandler)
 	r.HandleFunc("/ws/", wsGameHandler)
 	r.HandleFunc("/ws/{room_name}", wsGameHandler)
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("../public/")))
+	r.PathPrefix("/").Handler(fileServer)
 
 	log.Fatal(http.ListenAndServe(":5000", handlers.LoggingHandler(os.Stderr, r)))
 }
