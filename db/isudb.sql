@@ -17,6 +17,8 @@ CREATE TABLE `room_time` (
   PRIMARY KEY (`room_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE INDEX `rt_time_idx` ON `room_time` (`time`);
+
 CREATE TABLE `buying` (
   `room_name` varchar(191) COLLATE utf8mb4_bin NOT NULL,
   `item_id` int(11) NOT NULL,
@@ -31,4 +33,3 @@ CREATE TABLE `adding` (
   `isu` longtext COLLATE utf8mb4_bin NOT NULL,
   PRIMARY KEY (`room_name`,`time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
